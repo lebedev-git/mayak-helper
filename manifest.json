@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "Помощник МАЯК",
+  "version": "0.8.0",
+  "description": "Подсказки МАЯК-ОКО во внешних сервисах: на каком вы шаге и что нажать дальше.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://rosdk.ru/*",
+    "https://*.rosdk.ru/*"
+  ],
+  "background": {
+    "service_worker": "core/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://suno.com/*",
+        "https://accounts.google.com/*",
+        "https://*.qwen.ai/*",
+        "https://chat.z.ai/*",
+        "https://*.audiocleaner.ai/*",
+        "https://*.pixverse.ai/*",
+        "https://gamma.app/*",
+        "https://*.renderforest.com/*"
+      ],
+      "js": [
+        "maps/suno.js",
+        "maps/qwen.js",
+        "maps/zai.js",
+        "maps/audiocleaner.js",
+        "maps/pixverse.js",
+        "maps/gamma.js",
+        "maps/renderforest.js",
+        "core/helper.js"
+      ],
+      "css": [
+        "core/helper.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/*.woff2"
+      ],
+      "matches": [
+        "https://suno.com/*",
+        "https://accounts.google.com/*",
+        "https://*.qwen.ai/*",
+        "https://chat.z.ai/*",
+        "https://*.audiocleaner.ai/*",
+        "https://*.pixverse.ai/*",
+        "https://gamma.app/*",
+        "https://*.renderforest.com/*"
+      ]
+    }
+  ]
+}

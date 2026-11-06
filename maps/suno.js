@@ -1,0 +1,156 @@
+// Карта Suno. Только данные: ядро её читает, кода здесь нет. Элементы ищутся по видимому тексту и
+// aria-label: CSS-классы Suno генерируются и меняются. Сверено с живым Suno 02.11.2026.
+// title: подпись у курсора, коротко, что сделать; say: пояснение в капсуле, не длиннее 60 знаков.
+(window.MAYAK_MAPS ||= []).push({
+  service: 'suno',
+  name: 'Suno',
+  hosts: ['suno.com', 'accounts.google.com'],
+  home: 'suno.com',
+  dock: 104, // капсула помощника над плеером Suno
+
+  elements: {
+    cookies: { css: '#cmp-first-layer.cmp-visible #cmp-first-layer-buttons' },
+    login: { css: 'button, a', text: '^(log in|sign in)$' },
+    google: { css: 'button', text: 'continue with google' },
+    gAccount: { css: '[data-identifier]' },
+    gEmail: { css: 'input[name=identifier], input[type=email]' },
+    gPassword: { css: 'input[name=Passwd], input[type=password]' },
+    gNext: { css: 'button', text: '^(далее|next)$' },
+    gContinue: { css: 'button', text: '^(продолжить|continue)$' },
+    profile: { css: '[data-testid="profile-menu-button"]' },
+    createNav: { css: 'a[href="/create"]' },
+    simple: { css: '[role=tab]', text: '^simple$', on: { attr: 'aria-selected', eq: 'true' } },
+    advanced: { css: '[role=tab]', text: '^advanced$', on: { attr: 'aria-selected', eq: 'true' } },
+    modes: { css: '[role=tablist]', text: 'simple ?advanced$' }, // у Suno aria-label "Create form mode" + текст вкладок
+    prompt: { css: 'textarea:not([aria-label])' },
+    lyrics: { css: '[role=textbox][aria-label="Lyrics editor"]' },
+    style: { css: 'textarea[aria-label="Styles"], textarea:not([aria-label])' }, // с 05.11.2026 у поля стиля есть aria-label
+    create: { css: 'button[aria-label="Create song"]' },
+    cover: { css: '[role=button][aria-label^="Play "]' },
+    pause: { css: 'button[aria-label^="Playbar: Pause"]' },
+    more: { css: 'button[aria-label="More options"]' },
+    download: { css: '[role=menuitem][aria-label="Download"]' },
+    save: { css: '[role=dialog] button', text: 'download$' },
+  },
+
+  stages: [
+    { id: 'login', title: 'Вход' },
+    { id: 'create', title: 'Создание' },
+    { id: 'result', title: 'Результат' },
+  ],
+
+  intro: [
+    { id: 'cookies', stage: 'login', el: 'cookies',
+      skip: { not: { exists: 'cookies' } },
+      title: 'Закройте окно cookies',
+      say: 'Reject All или Accept All: на работу Suno выбор не влияет.' },
+    { id: 'login', stage: 'login', el: 'login',
+      skip: { any: [{ exists: 'profile' }, { exists: 'google' }] },
+      title: 'Нажмите Log in',
+      say: 'Кнопка входа у Suno бывает в разных местах.' },
+    { id: 'google', stage: 'login', el: 'google',
+      skip: { exists: 'profile' },
+      title: 'Нажмите Continue with Google',
+      say: 'Вход через Google: отдельный пароль для Suno не нужен.' },
+    // Страницы Google: шаг виден только если человек пришёл из Suno (нажал Continue with Google за
+    // последние 15 минут). Какая страница открыта, видно по полю на ней; последний шаг без цели —
+    // запасной для всего, что Google покажет ещё (подтверждение по телефону и т. п.).
+    { id: 'g-account', stage: 'login', host: 'accounts.google.com', el: 'gAccount',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gAccount' } }] },
+      title: 'Нажмите свой аккаунт',
+      say: 'Аккаунт Google, через который входите в Suno.' },
+    { id: 'g-email', stage: 'login', host: 'accounts.google.com', el: 'gEmail',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gEmail' } }, { filled: 'gEmail' }] },
+      title: 'Введите почту Gmail',
+      say: 'Адрес почты, например ivanov@gmail.com.' },
+    { id: 'g-email-next', stage: 'login', host: 'accounts.google.com', el: 'gNext',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gEmail' } }] },
+      title: 'Нажмите Далее',
+      say: 'Google проверит адрес и попросит пароль.' },
+    { id: 'g-password', stage: 'login', host: 'accounts.google.com', el: 'gPassword',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gPassword' } }, { filled: 'gPassword' }] },
+      title: 'Введите пароль',
+      say: 'Пароль от почты Gmail. Его видите только вы.' },
+    { id: 'g-password-next', stage: 'login', host: 'accounts.google.com', el: 'gNext',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gPassword' } }] },
+      title: 'Нажмите Далее',
+      say: 'После входа Google вернёт вас в Suno.' },
+    { id: 'g-continue', stage: 'login', host: 'accounts.google.com', el: 'gContinue',
+      skip: { any: [{ not: { clicked: 'google', within: 900000 } }, { not: { exists: 'gContinue' } }] },
+      title: 'Нажмите Продолжить',
+      say: 'Google спрашивает разрешение войти в Suno.' },
+    { id: 'google-account', stage: 'login', host: 'accounts.google.com',
+      skip: { not: { clicked: 'google', within: 900000 } },
+      title: 'Войдите в аккаунт Google',
+      say: 'Следуйте шагам Google, потом вернётесь в Suno.' },
+    { id: 'create-nav', stage: 'create', el: 'createNav',
+      skip: { any: [{ not: { exists: 'profile' } }, { url: '^/create' }] },
+      title: 'Откройте Create',
+      say: 'Раздел Create в меню слева: здесь создаются песни.' },
+  ],
+
+  // Выбор режима: кольцо на обеих вкладках, под каждой метка, когда она нужна. Закрывается нажатием
+  // на любую вкладку; если поле уже заполнено, человек свой режим уже выбрал.
+  choose: {
+    stage: 'create',
+    el: 'modes',
+    done: 'click',
+    skip: { any: [{ filled: 'prompt' }, { filled: 'lyrics' }] },
+    title: 'Выберите режим',
+    say: 'Simple: промт из тренажёра. Advanced: свои слова песни.',
+  },
+
+  // Путь — вкладка Suno, которая сейчас выбрана; mark — метка под вкладкой на шаге выбора режима,
+  // note — тихая подпись под ней на остальных шагах создания.
+  paths: {
+    simple: {
+      tab: 'simple',
+      mark: 'Есть промт из тренажёра',
+      note: 'по промту',
+      steps: [
+        { id: 's-prompt', stage: 'create', el: 'prompt',
+          skip: { filled: 'prompt' },
+          title: 'Вставьте промт', keys: ['Ctrl', 'V'],
+          say: 'Нажмите в поле и вставьте промт из тренажёра.' },
+        { id: 's-create', stage: 'create', el: 'create', done: 'click',
+          title: 'Нажмите Create',
+          say: 'Suno сделает два варианта песни за 1-2 минуты.' },
+      ],
+    },
+    advanced: {
+      tab: 'advanced',
+      mark: 'Есть свой текст песни',
+      note: 'свои слова',
+      steps: [
+        { id: 'a-lyrics', stage: 'create', el: 'lyrics',
+          skip: { filled: 'lyrics' },
+          title: 'Вставьте текст песни', keys: ['Ctrl', 'V'],
+          say: 'Текст песни, подготовленный заранее.' },
+        { id: 'a-style', stage: 'create', el: 'style',
+          skip: { filled: 'style' },
+          title: 'Опишите стиль',
+          say: 'Жанр, голос и настроение: например, поп-рок, мужской вокал.' },
+        { id: 'a-create', stage: 'create', el: 'create', done: 'click',
+          title: 'Нажмите Create',
+          say: 'Suno сделает два варианта песни за 1-2 минуты.' },
+      ],
+    },
+  },
+
+  outro: [
+    { id: 'listen', stage: 'result', el: 'cover', wait: 120000,
+      done: { exists: 'pause' },
+      title: 'Послушайте песню',
+      say: 'Новая песня первая в списке. Нажмите на обложку.' },
+    { id: 'dl-open', stage: 'result', el: ['download', 'more'],
+      done: { exists: 'save' },
+      title: 'Откройте скачивание',
+      say: 'Три точки у понравившейся песни, затем Download.' },
+    { id: 'dl-file', stage: 'result', el: ['save', 'download', 'more'], clickOn: 'save', download: true,
+      title: 'Скачайте MP3',
+      say: 'MP3 и кнопка внизу окна. Бесплатных скачиваний мало.' },
+    { id: 'finish', stage: 'result', last: true,
+      title: 'Готово',
+      say: 'Песня в "Загрузках". Вернитесь в тренажёр и загрузите файл.' },
+  ],
+});
