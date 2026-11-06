@@ -4,6 +4,7 @@
 # у расширения. Папка та же, поэтому Chrome подхватывает новую версию без переустановки.
 #   irm https://raw.githubusercontent.com/lebedev-git/mayak-helper/main/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue' # в PowerShell 5 полоска загрузки замедляет скачивание в разы
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $dir = Join-Path $env:LOCALAPPDATA 'MayakHelper'
 $zip = Join-Path $env:TEMP 'mayak-helper.zip'
