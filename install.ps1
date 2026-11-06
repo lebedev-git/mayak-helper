@@ -23,8 +23,12 @@ Expand-Archive $zip $dir
 Remove-Item $zip -Force
 
 $v = (Get-Content (Join-Path $dir 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
-Set-Clipboard $dir
+# Буфер обмена бывает занят другой программой (у Андрея 06.11.2026 "Сбой ... с буфером обмена"):
+# помощник уже установлен, поэтому без буфера просто показываем путь.
+$copied = $false
+foreach ($i in 1..3) { try { Set-Clipboard $dir; $copied = $true; break } catch { Start-Sleep -Milliseconds 300 } }
 Write-Host "Помощник МАЯК $v в папке $dir"
-Write-Host 'Путь скопирован. Первый раз: Режим разработчика, Загрузить распакованное, вставить путь.'
+if ($copied) { Write-Host 'Путь скопирован. Первый раз: Режим разработчика, Загрузить распакованное, вставить путь.' }
+else { Write-Host 'Первый раз: Режим разработчика, Загрузить распакованное, выбрать папку, путь к ней в строке выше.' }
 Write-Host 'Обновление: круглая стрелка у расширения на странице chrome://extensions.'
 try { Start-Process chrome 'chrome://extensions' } catch { Write-Host 'Откройте в Chrome адрес chrome://extensions' }
