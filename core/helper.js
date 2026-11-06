@@ -95,6 +95,15 @@
 
   function current() {
     const list = steps();
+    // Вход сверяется со страницей всегда, что бы ни помнил помощник: человек вышел из аккаунта или
+    // открыл страницу входа после перезагрузки, и шаги входа нужны снова (Андрей 06.11.2026: на
+    // странице входа Qwen висело "Отправьте промт"). Берутся шаги первого этапа с целью на странице
+    // и условием пропуска, которые не нажаты и не пропущены человеком.
+    const gate = MAP.stages[0]?.id;
+    for (const s of list) {
+      if (s.stage !== gate || !s.el || !s.skip || st.done[s.id] || st.skipped[s.id]) continue;
+      if (onHost(s.host || MAP.home) && !test(s.skip) && el(s.el)) return s;
+    }
     let from = 0;
     list.forEach((s, i) => {
       if (st.done[s.id] || st.skipped[s.id]) from = i + 1;
