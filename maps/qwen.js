@@ -8,6 +8,27 @@
 // Сверено с живым Qwen 05.11.2026 с входом и без, до отправки промта; результат (ответ, картинка, видео)
 // собран по коду страницы: генерация тратит лимиты, вживую не запускалась.
 // title: подпись у курсора, коротко, что сделать; say: пояснение в капсуле, не длиннее 60 знаков.
+(() => {
+// Шаги, общие для всех форматов. Промт отправлен, когда в чате появилось сообщение человека: так шаг
+// закрывается и после Enter, который ядро как нажатие не видит. Смена режима текст в поле не стирает.
+const prompt = (id) => ({ id, stage: 'create', el: 'prompt',
+  skip: { filled: 'prompt' }, done: { exists: 'sent' },
+  title: 'Вставьте промт', keys: ['Ctrl', 'V'],
+  say: 'Промт из тренажёра: кнопка Скопировать, затем сюда.' });
+// Режим в меню "+": кольцо на "+", в открытом меню на нужном пункте; готово, когда режим включён.
+const mode = (id, tab, item, name) => ({ id, stage: 'create', el: [item, 'plus'],
+  done: { on: tab },
+  title: `Включите ${name}`,
+  say: `Нажмите + и выберите ${name}.` });
+// Доп. материал из задания (файл, картинка) по желанию: + и Загрузить вложение, или Пропустить.
+const attach = (id) => ({ id, stage: 'create', el: ['uploadItem', 'plus'], clickOn: 'uploadItem', done: 'click',
+  skip: { exists: 'sent' },
+  title: 'Добавьте материал, если нужен',
+  say: 'Файл в задании? + и Загрузить вложение. Нет: Пропустить.' });
+const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
+  done: { any: [{ clicked: id, within: 3600000 }, { exists: 'sent' }] },
+  title, keys: ['Enter'], say });
+
 (window.MAYAK_MAPS ||= []).push({
   service: 'qwen',
   name: 'Qwen',
@@ -38,11 +59,14 @@
     imageTab: { css: '[aria-disabled]:not([role=menuitem])', text: '^(создать изображение|create image)$', on: { attr: 'aria-disabled', eq: 'false' } },
     videoTab: { css: '[aria-disabled]:not([role=menuitem])', text: '^(создать видео|create video)$', on: { attr: 'aria-disabled', eq: 'false' } },
     webTab: { css: '[aria-disabled]:not([role=menuitem])', text: '^(веб-разработка|web dev(elopment)?)$', on: { attr: 'aria-disabled', eq: 'false' } },
-    textTab: {
-      css: 'body:has(textarea:is([placeholder*="помочь"], [placeholder*="help"])):not(:has([role=menu])) button[aria-label]',
-      text: '^(отправить|send)$',
-      on: { attr: 'aria-label', eq: 'Отправить' },
-    },
+    // Пункты меню "+" и список моделей (кнопка с названием модели, aria-label "Select Model").
+    imageItem: { css: '[role=menu] [role=menuitem]', text: '^(создать изображение|create image)' },
+    videoItem: { css: '[role=menu] [role=menuitem]', text: '^(создать видео|create video)' },
+    webItem: { css: '[role=menu] [role=menuitem]', text: '^(веб-разработка|web dev)' },
+    uploadItem: { css: '[role=menu] [role=menuitem]', text: '^(загрузить вложение|upload attachment)' },
+    modelBtn: { css: '[aria-label="Select Model"]' },
+    modelMax: { css: '[aria-label="Select Model"]', text: 'qwen[\\d.]+-max' },
+    maxItem: { css: '[role=listbox] [role=option]', text: '^qwen[\\d.]+-max' },
     sent: { css: '.qwen-chat-message-user' },
     // Кнопки под последним ответом Qwen, не под сообщением человека и не в блоке кода.
     copy: { css: '.qwen-chat-message-assistant:not(:has(~ .qwen-chat-message-assistant)) .response-message-footer button', text: '^(копировать|copy)$' },
@@ -103,39 +127,31 @@
       skip: { not: { clicked: 'google', within: 900000 } },
       title: 'Войдите в аккаунт Google',
       say: 'Следуйте шагам Google, потом вернётесь в Qwen.' },
-    // Промт отправлен, когда в чате появилось сообщение человека: так шаг закрывается и после Enter,
-    // который ядро как нажатие не видит. Смена режима текст в поле не стирает.
-    { id: 'prompt', stage: 'create', el: 'prompt',
-      skip: { filled: 'prompt' }, done: { exists: 'sent' },
-      title: 'Вставьте промт', keys: ['Ctrl', 'V'],
-      say: 'Промт из тренажёра: кнопка Скопировать, затем сюда.' },
+    // Модель: самая сильная Max (Андрей, 06.11.2026). Список открывается кнопкой с названием модели,
+    // выбранная Max остаётся и в режимах картинки и видео (проверено вживую).
+    { id: 'model', stage: 'create', el: ['maxItem', 'modelBtn'],
+      skip: { any: [{ exists: 'modelMax' }, { exists: 'sent' }] },
+      title: 'Выберите модель Max',
+      say: 'Сверху название модели: нажмите и выберите вариант Max.' },
   ],
 
-  // Выбор формата, промт уже в поле. Картинка и видео: меню "+" (кольцо на "+", в открытом меню на
-  // меню). Текст: метка под кнопкой отправки, отправить сразу. Закрывается нажатием в меню или на
-  // отправку, выбранным режимом картинки или видео, отправленным промтом.
+  // Формат первым (Андрей, 06.11.2026): кнопки в капсуле, как в задании тренажёра. Если режим уже
+  // выбран в "+" или промт отправлен, шаг не нужен: путь берётся по выбранному режиму.
   choose: {
     stage: 'create',
-    el: ['menu', 'plus'],
-    clickOn: ['menu', 'textTab'],
-    done: 'click',
+    buttons: true,
     skip: { any: [{ on: 'imageTab' }, { on: 'videoTab' }, { on: 'webTab' }, { exists: 'sent' }] },
-    title: 'Выберите формат',
-    say: 'Картинка, видео, сайт: нажмите +. Текст: сразу отправьте.',
+    title: 'Что делаем?',
+    say: 'Выберите формат, как в задании тренажёра.',
   },
 
-  // Путь — режим, который сейчас выбран в Qwen; mark — метка на шаге выбора формата, note — тихая
-  // подпись на остальных шагах. Текст, фото, видео — инструкции тренажёра; сайт — веб-разработка Qwen.
+  // Путь: label — кнопка в капсуле, tab — режим Qwen, по которому путь узнаётся сам (у текста режима
+  // нет), note — тихая подпись под режимом. Общие шаги собраны функциями выше карты.
   paths: {
     text: {
-      tab: 'textTab',
-      mark: 'Задание на текст: отправьте',
-      note: 'текст',
+      label: 'Текст',
       steps: [
-        { id: 't-send', stage: 'create', el: 'send',
-          done: { any: [{ clicked: 't-send', within: 3600000 }, { exists: 'sent' }] },
-          title: 'Отправьте промт', keys: ['Enter'],
-          say: 'Стрелка справа или Enter. Потом дождитесь ответа.' },
+        prompt('t-prompt'), attach('t-attach'), send('t-send', 'Отправьте промт', 'Стрелка справа или Enter. Потом дождитесь ответа.'),
         { id: 't-copy', stage: 'result', el: 'copy', wait: 180000, done: 'click',
           title: 'Скопируйте ответ',
           say: 'Дождитесь конца ответа и нажмите Копировать под ним.' },
@@ -145,14 +161,12 @@
       ],
     },
     image: {
+      label: 'Картинка',
       tab: 'imageTab',
-      mark: 'Задание на картинку',
       note: 'картинка',
       steps: [
-        { id: 'i-send', stage: 'create', el: 'send',
-          done: { any: [{ clicked: 'i-send', within: 3600000 }, { exists: 'sent' }] },
-          title: 'Запустите генерацию', keys: ['Enter'],
-          say: 'Стрелка справа или Enter: Qwen нарисует картинку.' },
+        mode('i-mode', 'imageTab', 'imageItem', 'Создать изображение'),
+        prompt('i-prompt'), attach('i-attach'), send('i-send', 'Запустите генерацию', 'Стрелка справа или Enter: Qwen нарисует картинку.'),
         { id: 'i-download', stage: 'result', el: ['preview', 'download'], wait: 240000, download: true,
           title: 'Скачайте картинку',
           say: 'Оцените результат и нажмите Скачать под картинкой.' },
@@ -162,14 +176,12 @@
       ],
     },
     video: {
+      label: 'Видео',
       tab: 'videoTab',
-      mark: 'Задание на видео',
       note: 'видео',
       steps: [
-        { id: 'v-send', stage: 'create', el: 'send',
-          done: { any: [{ clicked: 'v-send', within: 3600000 }, { exists: 'sent' }] },
-          title: 'Запустите видео', keys: ['Enter'],
-          say: 'Стрелка справа или Enter. Видео делается несколько минут.' },
+        mode('v-mode', 'videoTab', 'videoItem', 'Создать видео'),
+        prompt('v-prompt'), attach('v-attach'), send('v-send', 'Запустите видео', 'Стрелка справа или Enter. Видео делается несколько минут.'),
         { id: 'v-download', stage: 'result', el: ['preview', 'download'], wait: 900000, download: true,
           title: 'Скачайте видео',
           say: 'Оцените результат и нажмите Скачать под роликом.' },
@@ -179,14 +191,12 @@
       ],
     },
     site: {
+      label: 'Сайт',
       tab: 'webTab',
-      mark: 'Задание на сайт',
       note: 'сайт',
       steps: [
-        { id: 's-send', stage: 'create', el: 'send',
-          done: { any: [{ clicked: 's-send', within: 3600000 }, { exists: 'sent' }] },
-          title: 'Отправьте промт', keys: ['Enter'],
-          say: 'Стрелка справа или Enter. Qwen соберёт сайт за пару минут.' },
+        mode('s-mode', 'webTab', 'webItem', 'веб-разработка'),
+        prompt('s-prompt'), attach('s-attach'), send('s-send', 'Отправьте промт', 'Стрелка справа или Enter. Qwen соберёт сайт за пару минут.'),
         // Панель сайта открывается сама; если её закрыли, кнопка превью под ответом.
         { id: 's-open', stage: 'result', el: 'webOpen',
           skip: { any: [{ exists: 'deploy' }, { not: { exists: 'webOpen' } }] },
@@ -209,3 +219,4 @@
       say: 'Сохраните результат, в тренажёре нажмите Завершить.' },
   ],
 });
+})();

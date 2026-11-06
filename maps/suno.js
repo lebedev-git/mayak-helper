@@ -105,7 +105,7 @@
   paths: {
     simple: {
       tab: 'simple',
-      mark: 'Есть промт из тренажёра',
+      mark: 'Промт из тренажёра',
       note: 'по промту',
       steps: [
         { id: 's-prompt', stage: 'create', el: 'prompt',
@@ -119,7 +119,7 @@
     },
     advanced: {
       tab: 'advanced',
-      mark: 'Есть свой текст песни',
+      mark: 'Свой текст песни',
       note: 'свои слова',
       steps: [
         { id: 'a-lyrics', stage: 'create', el: 'lyrics',

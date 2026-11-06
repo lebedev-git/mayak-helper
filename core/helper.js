@@ -16,6 +16,7 @@
 //
 // Путь (Simple, Advanced) — вкладка сервиса, которая сейчас выбрана. Перед путём шаг choose: кольцо
 // на вкладках и метки под каждой, чем варианты отличаются; закрывается нажатием на любую вкладку.
+// choose.buttons: вкладок нет, выбор кнопками в капсуле (label пути), например формат в Qwen.
 (async () => {
   const host = location.hostname;
   const onHost = (h) => host === h || host.endsWith('.' + h);
@@ -31,6 +32,8 @@
   const TICK = 500;
   const LOST_AFTER = 6000;
   const LOST_NOTE = 'Не вижу кнопку: найдите её по описанию или пропустите шаг.';
+  const COVERED_NOTE = 'Кнопку закрывает окно сайта: закройте его (крестик, Esc или клик рядом).';
+  const COVERED_AFTER = 1200; // окно должно провисеть столько, мигание подсказок сайта не в счёт
   const KEY = 'mayak:' + MAP.service;
   const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
   const SAVING = 180000; // после нажатия "Скачать" столько ждём файл, потом снова обычная подсказка
@@ -38,6 +41,7 @@
 
   let st = fresh();
   let curStep = null, curEl = null, curMarks = [], lostStep = null, lostSince = 0, lost = false;
+  let coveredSince = 0, covered = false;
   let dockSig = '', scrolledFor = null;
   let rootHost, shadow, ui;
 
@@ -133,7 +137,7 @@
     if (!choose && !PATHS[st.path]?.steps.includes(curStep)) return [];
     return Object.entries(PATHS)
       .map(([k, p]) => ({ e: el(p.tab), text: choose ? p.mark : p.note, quiet: !choose, on: k === st.path }))
-      .filter((m) => m.e && shown(m.e).frac > 0.5);
+      .filter((m) => m.e && m.text && shown(m.e).frac > 0.5);
   }
   const loud = () => curMarks.some((m) => !m.quiet);
 
@@ -265,22 +269,31 @@
     }
 
     while (ui.marks.children.length > ms.length) ui.marks.lastChild.remove();
-    // Метки соседних вкладок встают в ряд, не налезая друг на друга.
-    let prevRight = -Infinity;
-    ms.forEach((m, i) => {
-      const node = ui.marks.children[i] || ui.marks.appendChild(document.createElement('div'));
-      node.className = 'mark' + (m.quiet ? ' quiet' : '') + (m.quiet && m.on ? ' on' : '');
-      node.textContent = m.text;
-      const r = m.e.getBoundingClientRect();
-      placeNear(node, r, 6);
-      // тихая подпись по центру своей вкладки, крупная от её левого края
-      const want = m.quiet ? r.left + r.width / 2 - node.offsetWidth / 2 : parseFloat(node.style.left);
-      const left = Math.max(want, prevRight + 6);
-      node.style.left = left + 'px';
-      // хвостик бирки смотрит в центр своей вкладки, даже если бирку сдвинула соседняя
-      node.style.setProperty('--tail', r.left + r.width / 2 - left + 'px');
-      prevRight = left + node.offsetWidth;
-    });
+    // Бирка по центру своей вкладки, хвостик в её центр. Вкладки узкие (Simple, Advanced), а бирки
+    // широкие: если соседние налезают, ряд бирок ставится группой по центру вкладок, а хвостики
+    // остаются на своих бирках и смотрят в сторону своей вкладки.
+    const GAP = 6;
+    const placed = ms
+      .map((m, i) => {
+        const node = ui.marks.children[i] || ui.marks.appendChild(document.createElement('div'));
+        node.className = 'mark' + (m.quiet ? ' quiet' : '') + (m.quiet && m.on ? ' on' : '');
+        node.textContent = m.text;
+        const r = m.e.getBoundingClientRect();
+        placeNear(node, r, 6);
+        const w = node.offsetWidth;
+        return { node, r, w, mid: r.left + r.width / 2 };
+      })
+      .sort((a, b) => a.mid - b.mid);
+    const overlap = placed.some((p, i) => i && p.mid - p.w / 2 < placed[i - 1].mid + placed[i - 1].w / 2 + GAP);
+    const total = placed.reduce((n, p) => n + p.w, 0) + GAP * Math.max(0, placed.length - 1);
+    const center = placed.length ? (placed[0].r.left + placed[placed.length - 1].r.right) / 2 : 0;
+    let x = Math.min(Math.max(8, center - total / 2), innerWidth - total - 8);
+    for (const p of placed) {
+      const left = overlap ? x : Math.min(Math.max(8, p.mid - p.w / 2), innerWidth - p.w - 8);
+      p.node.style.left = left + 'px';
+      p.node.style.setProperty('--tail', Math.min(Math.max(14, p.mid - left), p.w - 14) + 'px');
+      x += p.w + GAP;
+    }
   }
 
   let rafPending = false;
@@ -329,13 +342,16 @@
     if (!s) text = '<b>Помощник МАЯК</b><span>Подсказки появятся, когда понадобятся.</span>';
     else if (saving(s)) text = '<b>Сохраняем файл</b><span>Как только файл скачается, покажу, что дальше.</span>';
     else if (lost) text = `<b>${esc(s.title)}</b><span class="warn">${esc(LOST_NOTE)}</span>`;
+    else if (covered) text = `<b>${esc(s.title)}</b><span class="warn">${esc(COVERED_NOTE)}</span>`;
     else if (curEl && !loud()) text = `<span class="say">${esc(s.say)}</span>`;
     else text = `<b>${esc(s.title)}</b><span>${esc(s.say)}</span>`;
     const btns = [];
+    const pick = s?.id === 'choose' && MAP.choose.buttons;
+    if (pick) for (const [k, p] of Object.entries(PATHS)) btns.push(`<button class="text" data-a="path" data-k="${esc(k)}">${esc(p.label)}</button>`);
     if (s?.last && st.file) btns.push(`<button class="text" data-a="file" title="${esc(st.file.name)}">Показать файл</button>`);
     if (s?.last) btns.push('<button class="primary" data-a="back">Вернуться в МАЯК</button>');
     if (s?.last) btns.push(`<button class="icon" data-a="restart" aria-label="Начать заново" title="Начать заново">${AGAIN}</button>`);
-    if (s && !s.last) btns.push('<button class="text" data-a="skip">Пропустить</button>');
+    if (s && !s.last && !pick) btns.push('<button class="text" data-a="skip">Пропустить</button>');
     btns.push(`<button class="icon" data-a="close" aria-label="Свернуть помощника">${DOWN}</button>`);
     return `<div class="dock glass">${badge(s)}<div class="txt">${text}</div><div class="btns">${btns.join('')}</div></div>`;
   }
@@ -361,7 +377,13 @@
   }
 
   function onClick(ev) {
-    const a = ev.target.closest('[data-a]')?.dataset.a;
+    const b = ev.target.closest('[data-a]');
+    const a = b?.dataset.a;
+    if (a === 'path' && PATHS[b.dataset.k]) {
+      st.path = b.dataset.k;
+      st.done.choose = Date.now();
+      return set({});
+    }
     if (a === 'open') return set({ open: true });
     if (a === 'close') return set({ open: false });
     if (a === 'skip') {
@@ -429,6 +451,16 @@
       const covered = !!hit && hit !== rootHost && !e.contains(hit) && !hit.contains(e);
       if (shown(frameOf(e)).frac < HIDDEN || covered) e.scrollIntoView({ behavior: smooth(), block: 'center' });
     }
+    // Цель под окном сайта (Gamma 5, реклама, опрос): кольцо на ней есть, а нажать нельзя, сказать.
+    // Своя подпись поля или иконка внутри того же блока не в счёт: окно сайта лежит вне блока цели.
+    if (e && st.open) {
+      const r = e.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const over = !!hit && hit !== rootHost && !(e.parentElement || e).contains(hit) && !hit.contains(e);
+      if (!over) coveredSince = 0;
+      else if (!coveredSince) coveredSince = Date.now();
+      covered = over && Date.now() - coveredSince > COVERED_AFTER;
+    } else covered = false;
     curStep = s;
     curEl = e;
     curMarks = marks();
@@ -520,7 +552,8 @@ kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; 
 .mark.quiet::before { content: ""; position: absolute; left: var(--tail, 50%); top: -4px; width: 7px; height: 7px; margin-left: -4px; transform: rotate(45deg); background: rgb(18, 18, 20); box-shadow: -1px -1px 0 rgba(255, 255, 255, 0.32); }
 .mark.quiet.on { color: #fff; box-shadow: inset 0 0 0 1.5px #fff; }
 .mark.quiet.on::before { box-shadow: -1.5px -1.5px 0 #fff; }
-.mark { position: absolute; padding: 8px 14px; border-radius: 999px; font-size: 14.5px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: #0b0b0c; background: #fff; white-space: nowrap; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25); }
+.mark { position: absolute; padding: 6px 12px; border-radius: 999px; font-size: 13.5px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; color: #0b0b0c; background: #fff; white-space: nowrap; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25); }
+.mark:not(.quiet)::before { content: ""; position: absolute; left: var(--tail, 50%); top: -4px; width: 8px; height: 8px; margin-left: -4px; transform: rotate(45deg); background: #fff; }
 
 .dock-wrap { position: absolute; left: 50%; bottom: var(--dock, 24px); transform: translateX(-50%); max-width: calc(100vw - 24px); width: max-content; pointer-events: auto; }
 .dock-wrap.up { bottom: auto; top: 12px; }
@@ -536,7 +569,7 @@ kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; 
 .txt span { max-width: 60ch; font-size: 14.5px; font-weight: 500; line-height: 1.35; color: #c7c7cc; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .txt span.say { color: #e5e5ea; }
 .txt span.warn { color: #ffb340; }
-.btns { flex: none; display: flex; align-items: center; gap: 6px; }
+.btns { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .text, .primary { height: 40px; padding: 0 16px; border-radius: 20px; font-size: 14.5px; font-weight: 600; transition: background 0.15s; }
 .text { color: #f2f2f7; background: rgba(255, 255, 255, 0.1); }
 .text:hover { background: rgba(255, 255, 255, 0.18); }

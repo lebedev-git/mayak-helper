@@ -26,6 +26,8 @@
     // главная после входа (Gamma 5 или классическая); по ней видно, что вход выполнен
     home: { css: '[data-testid="dashboard-v2-root"], [data-testid$="entry-hero"]' },
     classic: { css: '[data-testid="classic-generator-link"]' },
+    // Окно-анонс Gamma 5 поверх главной (у Андрея 06.11.2026): пока оно открыто, ссылка не нажимается.
+    promo: { css: '[role=dialog]', text: '(gamma ?5|масштабное обновление|biggest update)' },
     survey: { css: '[role=dialog] button', text: '^(skip|пропустить)$' }, // опрос перед классическим генератором
     createNew: { css: '[data-testid="create-file-from-ai-button"]' },
     // Карточки способов на /create. Вкладок у Gamma нет: путь выбирается нажатием на карточку.
@@ -98,6 +100,11 @@
       skip: { not: { url: '^/setup' } },
       title: 'Настройте аккаунт',
       say: 'Следуйте шагам Gamma: подойдут любые ответы.' },
+    // Анонс Gamma 5 закрывает главную. Своей кнопки закрытия у окна может не быть: Esc или клик рядом.
+    { id: 'promo', stage: 'create',
+      skip: { not: { exists: 'promo' } },
+      title: 'Закройте окно Gamma 5',
+      say: 'Нажмите Esc или в любом месте рядом с окном.' },
     // Главная Gamma 5: инструкции тренажёра идут по классическому генератору, ссылка на него вверху.
     { id: 'classic', stage: 'create', el: 'classic',
       skip: { any: [{ not: { exists: 'classic' } }, { exists: 'survey' }] },
