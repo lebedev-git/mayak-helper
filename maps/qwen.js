@@ -20,6 +20,11 @@ const mode = (id, tab, item, name) => ({ id, stage: 'create', el: [item, 'plus']
   done: { on: tab },
   title: `Включите ${name}`,
   say: `Нажмите + и выберите ${name}.` });
+// Модель картинки или видео: шаг только если выбрана не та (Андрей, 06.11.2026); по умолчанию Qwen
+// ставит нужную, и шаг пропускается сам.
+const model = (id, btn, ok, item, title, say) => ({ id, stage: 'create', el: [item, btn],
+  skip: { any: [{ exists: ok }, { exists: 'sent' }, { not: { exists: btn } }] },
+  title, say });
 // Доп. материал из задания (файл, картинка) по желанию: + и Загрузить вложение, или Пропустить.
 const attach = (id) => ({ id, stage: 'create', el: ['uploadItem', 'plus'], clickOn: 'uploadItem', done: 'click',
   skip: { exists: 'sent' },
@@ -67,6 +72,14 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
     modelBtn: { css: '[aria-label="Select Model"]' },
     modelMax: { css: '[aria-label="Select Model"]', text: 'qwen[\\d.]+-max' },
     maxItem: { css: '[role=listbox] [role=option]', text: '^qwen[\\d.]+-max' },
+    // Модель картинок и видео — свой список рядом с режимом в строке ввода (06.11.2026): картинки
+    // Qwen-Image 3.0 (Pro только по подписке, VIP), видео самая новая HappyHorse (верх списка, не 1.0).
+    imgModelBtn: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^qwen-image' },
+    imgModelOk: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^qwen-image [\\d.]+$' },
+    imgModelItem: { css: '.qwen-chat-v2-dropdown-menu-item:has(.image-model-selector-item-title)', text: '^qwen-image [\\d.]+(?![\\d.]| ?pro)' },
+    vidModelBtn: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^happyhorse' },
+    vidModelOk: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^happyhorse (?!1\\.0$)[\\d.]+$' },
+    vidModelItem: { css: '.qwen-chat-v2-dropdown-menu-item:has(.video-model-selector-item-title)', text: '^happyhorse (?!1\\.0(?![\\d]))[\\d.]+' },
     sent: { css: '.qwen-chat-message-user' },
     // Кнопки под последним ответом Qwen, не под сообщением человека и не в блоке кода.
     copy: { css: '.qwen-chat-message-assistant:not(:has(~ .qwen-chat-message-assistant)) .response-message-footer button', text: '^(копировать|copy)$' },
@@ -166,6 +179,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       note: 'картинка',
       steps: [
         mode('i-mode', 'imageTab', 'imageItem', 'Создать изображение'),
+        model('i-model', 'imgModelBtn', 'imgModelOk', 'imgModelItem', 'Выберите Qwen-Image', 'Модель картинок без Pro: Pro работает только по подписке.'),
         prompt('i-prompt'), attach('i-attach'), send('i-send', 'Запустите генерацию', 'Стрелка справа или Enter: Qwen нарисует картинку.'),
         { id: 'i-download', stage: 'result', el: ['preview', 'download'], wait: 240000, download: true,
           title: 'Скачайте картинку',
@@ -181,6 +195,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       note: 'видео',
       steps: [
         mode('v-mode', 'videoTab', 'videoItem', 'Создать видео'),
+        model('v-model', 'vidModelBtn', 'vidModelOk', 'vidModelItem', 'Выберите новую HappyHorse', 'Модель видео: самая новая HappyHorse, она вверху списка.'),
         prompt('v-prompt'), attach('v-attach'), send('v-send', 'Запустите видео', 'Стрелка справа или Enter. Видео делается несколько минут.'),
         { id: 'v-download', stage: 'result', el: ['preview', 'download'], wait: 900000, download: true,
           title: 'Скачайте видео',
