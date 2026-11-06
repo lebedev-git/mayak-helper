@@ -8,14 +8,19 @@ $ProgressPreference = 'SilentlyContinue' # в PowerShell 5 полоска заг
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $dir = Join-Path $env:LOCALAPPDATA 'MayakHelper'
 $zip = Join-Path $env:TEMP 'mayak-helper.zip'
-$tmp = Join-Path $env:TEMP 'mayak-helper-unzip'
-
-Invoke-WebRequest 'https://github.com/lebedev-git/mayak-helper/archive/refs/heads/main.zip' -OutFile $zip -UseBasicParsing
-if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-Expand-Archive $zip $tmp
+# ZIP берётся с того же raw.githubusercontent.com, откуда пришла эта команда: раз она скачалась, адрес
+# доступен. github.com из России открывается не всегда (06.11.2026 у Андрея "Невозможно соединиться").
+$url = 'https://raw.githubusercontent.com/lebedev-git/mayak-helper/main/mayak-helper.zip'
+for ($i = 1; $i -le 3; $i++) {
+  try { Invoke-WebRequest $url -OutFile $zip -UseBasicParsing -TimeoutSec 60; break }
+  catch {
+    if ($i -eq 3) { throw "Не удалось скачать помощника: $($_.Exception.Message) Проверьте интернет и запустите команду ещё раз." }
+    Start-Sleep 3
+  }
+}
 if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
-Move-Item (Join-Path $tmp 'mayak-helper-main') $dir
-Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue
+Expand-Archive $zip $dir
+Remove-Item $zip -Force
 
 $v = (Get-Content (Join-Path $dir 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
 Set-Clipboard $dir

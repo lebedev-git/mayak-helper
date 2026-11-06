@@ -18,7 +18,7 @@ irm https://raw.githubusercontent.com/lebedev-git/mayak-helper/main/install.ps1 
 расширений Chrome. Там включить "Режим разработчика" (справа вверху), нажать "Загрузить распакованное
 расширение" и вставить путь (Ctrl+V).
 
-**Вручную.** Скачать [ZIP](https://github.com/lebedev-git/mayak-helper/archive/refs/heads/main.zip),
+**Вручную.** Скачать [ZIP](https://raw.githubusercontent.com/lebedev-git/mayak-helper/main/mayak-helper.zip),
 распаковать в постоянную папку (не во "Временные"), открыть `chrome://extensions`, включить "Режим
 разработчика", нажать "Загрузить распакованное расширение" и выбрать папку, где лежит `manifest.json`.
 
