@@ -11,6 +11,7 @@
 //   done      'click' или условие: шаг выполнен; выполненный шаг закрывает все шаги до него;
 //   clickOn   какой элемент засчитывать для done: 'click', если обведён не он;
 //   download  шаг закрывается, когда файл сохранился (сообщает core/background.js), а не по нажатию;
+//   skipLabel шаг по желанию: вместо "Пропустить" заметная кнопка с этой надписью ("Материала нет");
 //   redo      условие: пройденный шаг снова нужен (поле опустело, режим сняли), возвращается он;
 //   wait, host, stage, last (на последнем шаге кнопки "Вернуться в МАЯК" и "Показать файл").
 // Условия: {exists}, {on}, {filled}, {url}, {clicked, within}, {not}, {any}, {all}.
@@ -369,7 +370,8 @@
     if (s?.last && st.file) btns.push(`<button class="text" data-a="file" title="${esc(st.file.name)}">Показать файл</button>`);
     if (s?.last) btns.push('<button class="primary" data-a="back">Вернуться в МАЯК</button>');
     if (s?.last) btns.push(`<button class="icon" data-a="restart" aria-label="Начать заново" title="Начать заново">${AGAIN}</button>`);
-    if (s && !s.last && !pick) btns.push('<button class="text" data-a="skip">Пропустить</button>');
+    // У шага по желанию отказ — равноправный выбор, поэтому кнопка заметная и со своей надписью.
+    if (s && !s.last && !pick) btns.push(s.skipLabel ? `<button class="primary" data-a="skip">${esc(s.skipLabel)}</button>` : '<button class="text" data-a="skip">Пропустить</button>');
     btns.push(`<button class="icon" data-a="close" aria-label="Свернуть помощника">${DOWN}</button>`);
     return `<div class="dock glass">${badge(s)}<div class="txt">${text}</div><div class="btns">${btns.join('')}</div></div>`;
   }

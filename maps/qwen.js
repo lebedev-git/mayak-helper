@@ -35,12 +35,15 @@ const model = (id, btn, ok, item, title, say) => ({ id, stage: 'create', el: [it
 const setup = (id, list, btn, title, say, stay) => ({ id, stage: 'create', el: [list, btn], clickOn: list,
   done: stay ? { all: [{ clicked: id, within: 600000 }, { not: { exists: list } }] } : 'click',
   skip: { any: [{ exists: 'sent' }, { not: { exists: btn } }] },
+  skipLabel: 'Оставить как есть',
   title, say });
 // Доп. материал из задания (файл, картинка) по желанию: + и Загрузить вложение, или Пропустить.
+// Материал нужен не всегда (Андрей 07.11.2026): отказ — кнопка "Материала нет" в капсуле.
 const attach = (id) => ({ id, stage: 'create', el: ['uploadItem', 'plus'], clickOn: 'uploadItem', done: 'click',
   skip: { exists: 'sent' },
+  skipLabel: 'Материала нет',
   title: 'Добавьте материал, если нужен',
-  say: 'Файл в задании? + и Загрузить вложение. Нет: Пропустить.' });
+  say: 'Есть файл в задании? Нажмите + и Загрузить вложение.' });
 // Выбор из двух ответов, если Qwen его просит: шаг виден, пока список на экране.
 const pick = (id) => ({ id, stage: 'result', el: 'abList',
   skip: { not: { exists: 'abList' } },
@@ -211,7 +214,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       steps: [
         mode('i-mode', 'imageTab', 'imageItem', 'Создать изображение'),
         model('i-model', 'imgModelBtn', 'imgModelOk', 'imgModelItem', 'Выберите Qwen-Image', 'Модель картинок без Pro: Pro работает только по подписке.'),
-        setup('i-ratio', 'ratioList', 'ratioBtn', 'Выберите формат кадра', '16:9 широкий, 1:1 квадрат, 9:16 телефон. Или Пропустить.'),
+        setup('i-ratio', 'ratioList', 'ratioBtn', 'Выберите формат кадра', '16:9 широкий, 1:1 квадрат, 9:16 для телефона.'),
         prompt('i-prompt'), attach('i-attach'), send('i-send', 'Запустите генерацию', 'Стрелка справа или Enter: Qwen нарисует картинку.'),
         { id: 'i-download', stage: 'result', el: ['preview', 'download'], wait: 240000, download: true,
           title: 'Скачайте картинку',
