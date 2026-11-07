@@ -11,12 +11,15 @@
 //   done      'click' или условие: шаг выполнен; выполненный шаг закрывает все шаги до него;
 //   clickOn   какой элемент засчитывать для done: 'click', если обведён не он;
 //   download  шаг закрывается, когда файл сохранился (сообщает core/background.js), а не по нажатию;
+//   redo      условие: пройденный шаг снова нужен (поле опустело, режим сняли), возвращается он;
 //   wait, host, stage, last (на последнем шаге кнопки "Вернуться в МАЯК" и "Показать файл").
 // Условия: {exists}, {on}, {filled}, {url}, {clicked, within}, {not}, {any}, {all}.
 //
 // Путь (Simple, Advanced) — вкладка сервиса, которая сейчас выбрана. Перед путём шаг choose: кольцо
 // на вкладках и метки под каждой, чем варианты отличаются; закрывается нажатием на любую вкладку.
 // choose.buttons: вкладок нет, выбор кнопками в капсуле (label пути), например формат в Qwen.
+// MAP.loading: элемент заставки загрузки сервиса; пока он на экране, шагов нет (у Qwen во время
+// заставки висит кнопка "Войти" даже у вошедших).
 (async () => {
   const host = location.hostname;
   const onHost = (h) => host === h || host.endsWith('.' + h);
@@ -108,6 +111,12 @@
     list.forEach((s, i) => {
       if (st.done[s.id] || st.skipped[s.id]) from = i + 1;
     });
+    // Пройденное по памяти сверяется со страницей: если там снова пусто то, что шаг делал (промт
+    // стёрли, режим сняли), шаг возвращается. Андрей 06.11.2026: поле пустое, а помощник ждал
+    // отправки, кнопки которой без текста нет.
+    for (const s of list.slice(0, from)) {
+      if (s.redo && !st.skipped[s.id] && onHost(s.host || MAP.home) && test(s.redo)) return s;
+    }
     for (const s of list.slice(from)) {
       if (!onHost(s.host || MAP.home)) continue;
       if (s.done && s.done !== 'click' && test(s.done)) {
@@ -442,7 +451,7 @@
     if (document.hidden) return;
     if (!rootHost.isConnected) document.body.append(rootHost);
     if (onHost(MAP.home)) followTab();
-    const s = current();
+    const s = MAP.loading && el(MAP.loading) ? null : current();
     // Пока файл сохраняется, кольцо не нужно: запасные цели шага (три точки) звали бы нажать ещё раз.
     const e = s?.el && !saving(s) ? el(s.el) : null;
     if (s !== lostStep || e) {

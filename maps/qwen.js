@@ -13,23 +13,39 @@
 // закрывается и после Enter, который ядро как нажатие не видит. Смена режима текст в поле не стирает.
 const prompt = (id) => ({ id, stage: 'create', el: 'prompt',
   skip: { filled: 'prompt' }, done: { exists: 'sent' },
+  redo: { all: [{ exists: 'prompt' }, { not: { filled: 'prompt' } }, { not: { exists: 'sent' } }] },
   title: 'Вставьте промт', keys: ['Ctrl', 'V'],
   say: 'Промт из тренажёра: кнопка Скопировать, затем сюда.' });
 // Режим в меню "+": кольцо на "+", в открытом меню на нужном пункте; готово, когда режим включён.
 const mode = (id, tab, item, name) => ({ id, stage: 'create', el: [item, 'plus'],
   done: { on: tab },
+  redo: { all: [{ exists: 'plus' }, { not: { on: tab } }, { not: { exists: 'sent' } }] },
   title: `Включите ${name}`,
   say: `Нажмите + и выберите ${name}.` });
 // Модель картинки или видео: шаг только если выбрана не та (Андрей, 06.11.2026); по умолчанию Qwen
 // ставит нужную, и шаг пропускается сам.
 const model = (id, btn, ok, item, title, say) => ({ id, stage: 'create', el: [item, btn],
   skip: { any: [{ exists: ok }, { exists: 'sent' }, { not: { exists: btn } }] },
+  redo: { all: [{ exists: btn }, { not: { exists: ok } }, { not: { exists: 'sent' } }] },
+  title, say });
+// Настройка кадра по желанию (Андрей 06.11.2026: "не увидел, что можно выбрать разрешение"):
+// кольцо на кнопке настройки, в открытом списке на нём; нажатие внутри списка или Пропустить.
+// stay: окно настройки не закрывается само (параметры видео) и закрывает поле промта: шаг готов,
+// когда в окне что-то выбрали и окно закрыли.
+const setup = (id, list, btn, title, say, stay) => ({ id, stage: 'create', el: [list, btn], clickOn: list,
+  done: stay ? { all: [{ clicked: id, within: 600000 }, { not: { exists: list } }] } : 'click',
+  skip: { any: [{ exists: 'sent' }, { not: { exists: btn } }] },
   title, say });
 // Доп. материал из задания (файл, картинка) по желанию: + и Загрузить вложение, или Пропустить.
 const attach = (id) => ({ id, stage: 'create', el: ['uploadItem', 'plus'], clickOn: 'uploadItem', done: 'click',
   skip: { exists: 'sent' },
   title: 'Добавьте материал, если нужен',
   say: 'Файл в задании? + и Загрузить вложение. Нет: Пропустить.' });
+// Выбор из двух ответов, если Qwen его просит: шаг виден, пока список на экране.
+const pick = (id) => ({ id, stage: 'result', el: 'abList',
+  skip: { not: { exists: 'abList' } },
+  title: 'Выберите лучший ответ',
+  say: 'Qwen дал два ответа: Предпочитаю под тем, что лучше.' });
 const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
   done: { any: [{ clicked: id, within: 3600000 }, { exists: 'sent' }] },
   title, keys: ['Enter'], say });
@@ -40,6 +56,8 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
   // qwen.ai/home: туда ведёт ссылка части заданий, оттуда кнопка Попробовать Qwen открывает чат.
   hosts: ['chat.qwen.ai', 'qwen.ai', 'accounts.google.com'],
   home: 'chat.qwen.ai',
+  // Заставка загрузки: пока она есть, кнопка "Войти" бывает и у вошедших (около 4 с, 07.11.2026).
+  loading: 'splash',
 
   elements: {
     studio: { css: 'button, a', text: '^(попробовать qwen|try qwen)' },
@@ -80,6 +98,17 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
     vidModelBtn: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^happyhorse' },
     vidModelOk: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^happyhorse (?!1\\.0$)[\\d.]+$' },
     vidModelItem: { css: '.qwen-chat-v2-dropdown-menu-item:has(.video-model-selector-item-title)', text: '^happyhorse (?!1\\.0(?![\\d]))[\\d.]+' },
+    // Формат кадра картинки — второй список в строке ввода (16:9, 1:1, 9:16...), его выпадающее окно
+    // узнаётся по пунктам из одних чисел. Видео: кнопка "Параметры видео", окно с разрешением
+    // (1080P только VIP), форматом кадра и длиной (длиннее — больше кредитов).
+    ratioBtn: { css: '.mode-select .qwen-chat-v2-dropdown-menu-select', text: '^\\d+:\\d+$' },
+    ratioList: { css: '.qwen-chat-v2-dropdown-menu-popup', text: '^[\\d: ]+$' },
+    vidParamsBtn: { css: 'button[aria-label]', text: '^(параметры видео|video (params|parameters|settings))' }, // в подписи ещё "720P · 5s"
+    vidParamsPanel: { css: '.video-params-panel' },
+    splash: { css: '.splash-skeleton-group' },
+    // Иногда Qwen показывает два ответа рядом и просит выбрать ("Предпочитаю этот ответ"); пока не
+    // выбран, под ответом нет кнопки Копировать (07.11.2026, на модели Max).
+    abList: { css: '.smrm-list' },
     sent: { css: '.qwen-chat-message-user' },
     // Кнопки под последним ответом Qwen, не под сообщением человека и не в блоке кода.
     copy: { css: '.qwen-chat-message-assistant:not(:has(~ .qwen-chat-message-assistant)) .response-message-footer button', text: '^(копировать|copy)$' },
@@ -144,6 +173,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
     // выбранная Max остаётся и в режимах картинки и видео (проверено вживую).
     { id: 'model', stage: 'create', el: ['maxItem', 'modelBtn'],
       skip: { any: [{ exists: 'modelMax' }, { exists: 'sent' }] },
+      redo: { all: [{ exists: 'modelBtn' }, { not: { exists: 'modelMax' } }, { not: { exists: 'sent' } }] },
       title: 'Выберите модель Max',
       say: 'Сверху название модели: нажмите и выберите вариант Max.' },
   ],
@@ -165,6 +195,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       label: 'Текст',
       steps: [
         prompt('t-prompt'), attach('t-attach'), send('t-send', 'Отправьте промт', 'Стрелка справа или Enter. Потом дождитесь ответа.'),
+        pick('t-pick'),
         { id: 't-copy', stage: 'result', el: 'copy', wait: 180000, done: 'click',
           title: 'Скопируйте ответ',
           say: 'Дождитесь конца ответа и нажмите Копировать под ним.' },
@@ -180,6 +211,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       steps: [
         mode('i-mode', 'imageTab', 'imageItem', 'Создать изображение'),
         model('i-model', 'imgModelBtn', 'imgModelOk', 'imgModelItem', 'Выберите Qwen-Image', 'Модель картинок без Pro: Pro работает только по подписке.'),
+        setup('i-ratio', 'ratioList', 'ratioBtn', 'Выберите формат кадра', '16:9 широкий, 1:1 квадрат, 9:16 телефон. Или Пропустить.'),
         prompt('i-prompt'), attach('i-attach'), send('i-send', 'Запустите генерацию', 'Стрелка справа или Enter: Qwen нарисует картинку.'),
         { id: 'i-download', stage: 'result', el: ['preview', 'download'], wait: 240000, download: true,
           title: 'Скачайте картинку',
@@ -196,6 +228,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       steps: [
         mode('v-mode', 'videoTab', 'videoItem', 'Создать видео'),
         model('v-model', 'vidModelBtn', 'vidModelOk', 'vidModelItem', 'Выберите новую HappyHorse', 'Модель видео: самая новая HappyHorse, она вверху списка.'),
+        setup('v-params', 'vidParamsPanel', 'vidParamsBtn', 'Настройте видео', '1080P только VIP, длиннее дороже. Потом клик мимо окна.', true),
         prompt('v-prompt'), attach('v-attach'), send('v-send', 'Запустите видео', 'Стрелка справа или Enter. Видео делается несколько минут.'),
         { id: 'v-download', stage: 'result', el: ['preview', 'download'], wait: 900000, download: true,
           title: 'Скачайте видео',
@@ -212,6 +245,7 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
       steps: [
         mode('s-mode', 'webTab', 'webItem', 'веб-разработка'),
         prompt('s-prompt'), attach('s-attach'), send('s-send', 'Отправьте промт', 'Стрелка справа или Enter. Qwen соберёт сайт за пару минут.'),
+        pick('s-pick'),
         // Панель сайта открывается сама; если её закрыли, кнопка превью под ответом.
         { id: 's-open', stage: 'result', el: 'webOpen',
           skip: { any: [{ exists: 'deploy' }, { not: { exists: 'webOpen' } }] },
