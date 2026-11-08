@@ -12,6 +12,9 @@
 //   clickOn   какой элемент засчитывать для done: 'click', если обведён не он;
 //   download  шаг закрывается, когда файл сохранился (сообщает core/background.js), а не по нажатию;
 //   skipLabel шаг по желанию: вместо "Пропустить" заметная кнопка с этой надписью ("Материала нет");
+//   overlay   окно сайта поверх страницы (реклама): шаг показывается на любом этапе, пока цель на странице;
+// MAP.newTask: условие "на странице новая задача" (пустой чат); если помощник в это время на этапе
+//   результата, прогресс сбрасывается сам.
 //   redo      условие: пройденный шаг снова нужен (поле опустело, режим сняли), возвращается он;
 //   wait, host, stage, last (на последнем шаге кнопки "Вернуться в МАЯК" и "Показать файл").
 // Условия: {exists}, {on}, {filled}, {url}, {clicked, within}, {not}, {any}, {all}.
@@ -90,7 +93,8 @@
 
   // --- путь и шаги ---
 
-  const selectedPath = () => Object.keys(PATHS).find((k) => test({ on: PATHS[k].tab })) || null;
+  // Путь узнаётся по выбранной вкладке сервиса или по условию when (Gamma: адрес страницы способа).
+  const selectedPath = () => Object.keys(PATHS).find((k) => test({ on: PATHS[k].tab }) || (PATHS[k].when && test(PATHS[k].when))) || null;
 
   function steps() {
     const p = st.path && PATHS[st.path];
@@ -99,6 +103,9 @@
 
   function current() {
     const list = steps();
+    // Окно сайта поверх всего (реклама со скидкой у Renderforest) выскакивает на любом шаге: шаг overlay
+    // проверяется всегда, а не по порядку, пока его цель на странице и условие пропуска не выполнено.
+    for (const s of list) if (s.overlay && onHost(s.host || MAP.home) && !test(s.skip) && el(s.el)) return s;
     // Вход сверяется со страницей всегда, что бы ни помнил помощник: человек вышел из аккаунта или
     // открыл страницу входа после перезагрузки, и шаги входа нужны снова (Андрей 06.11.2026: на
     // странице входа Qwen висело "Отправьте промт"). Берутся шаги первого этапа с целью на странице
@@ -124,14 +131,21 @@
         complete(s);
         continue;
       }
+      // выбор кнопками нужен, только пока путь не выбран (кнопкой или режимом сервиса)
+      if (s.id === 'choose' && MAP.choose.buttons && st.path) continue;
       if (s.skip && test(s.skip)) continue;
       return s;
     }
     return null;
   }
 
+  // Путь идёт за вкладкой (режимом) сервиса, но только когда её сменили: выбор кнопкой в капсуле
+  // ("Текст", пока в Qwen ещё включён режим картинки) так не перебивается.
+  let lastSel;
   function followTab() {
     const sel = selectedPath();
+    if (sel === lastSel) return;
+    lastSel = sel;
     if (sel && sel !== st.path) {
       st.path = sel;
       save();
@@ -367,6 +381,8 @@
     const btns = [];
     const pick = s?.id === 'choose' && MAP.choose.buttons;
     if (pick) for (const [k, p] of Object.entries(PATHS)) btns.push(`<button class="text" data-a="path" data-k="${esc(k)}">${esc(p.label)}</button>`);
+    // Сменить формат на ходу (Андрей 07.11.2026: "если я хочу сменить с текста на видео"): назад к выбору.
+    if (MAP.choose?.buttons && st.path && s && !s.last && PATHS[st.path]?.steps.includes(s)) btns.push(`<button class="text" data-a="repick">${esc(MAP.choose.again || 'Другой формат')}</button>`);
     if (s?.last && st.file) btns.push(`<button class="text" data-a="file" title="${esc(st.file.name)}">Показать файл</button>`);
     if (s?.last) btns.push('<button class="primary" data-a="back">Вернуться в МАЯК</button>');
     if (s?.last) btns.push(`<button class="icon" data-a="restart" aria-label="Начать заново" title="Начать заново">${AGAIN}</button>`);
@@ -402,6 +418,11 @@
     if (a === 'path' && PATHS[b.dataset.k]) {
       st.path = b.dataset.k;
       st.done.choose = Date.now();
+      return set({});
+    }
+    if (a === 'repick') {
+      st.path = null;
+      delete st.done.choose;
       return set({});
     }
     if (a === 'open') return set({ open: true });
@@ -453,7 +474,25 @@
     if (document.hidden) return;
     if (!rootHost.isConnected) document.body.append(rootHost);
     if (onHost(MAP.home)) followTab();
-    const s = MAP.loading && el(MAP.loading) ? null : current();
+    let s = MAP.loading && el(MAP.loading) ? null : current();
+    // Новая задача в той же вкладке: сервис показывает пустой чат (MAP.newTask), а помощник ещё на этапе
+    // результата прошлой задачи — начать заново, как "Начать заново". Андрей 07.11.2026: после прошлой
+    // картинки помощник с новым промтом сразу просил "Скачайте картинку".
+    // Признак "прошлая задача отправлена": помощник видел отправленное сообщение (MAP.sentMark).
+    if (MAP.sentMark && !st.sent && el(MAP.sentMark)) {
+      st.sent = true;
+      save();
+    }
+    // Сразу после нажатия "Отправить" сообщение появляется не мгновенно: 15 с после любого нажатия не сбрасываем.
+    const calm = Date.now() - Math.max(0, ...Object.values(st.clicks)) > 15000;
+    const atResult = s && s.stage === MAP.stages[MAP.stages.length - 1]?.id;
+    if (calm && MAP.newTask && (st.sent || atResult) && test(MAP.newTask)) {
+      st = { ...fresh(), open: st.open };
+      lastSel = undefined; // путь заново по режиму, который сейчас включён в сервисе
+      save();
+      followTab();
+      s = current();
+    }
     // Пока файл сохраняется, кольцо не нужно: запасные цели шага (три точки) звали бы нажать ещё раз.
     const e = s?.el && !saving(s) ? el(s.el) : null;
     if (s !== lostStep || e) {
@@ -492,10 +531,14 @@
   document.addEventListener(
     'pointerdown',
     (ev) => {
-      for (const [k, p] of Object.entries(PATHS)) {
-        if (el(p.tab)?.contains(ev.target)) {
-          st.path = k;
-          save();
+      // Нажатие на вкладку выбирает путь (Suno). Где путь выбирается кнопками в капсуле (Qwen), "вкладка" —
+      // плашка режима с крестиком: нажатие на крестик — не выбор, путь там идёт за сменой режима.
+      if (!MAP.choose?.buttons) {
+        for (const [k, p] of Object.entries(PATHS)) {
+          if (el(p.tab)?.contains(ev.target)) {
+            st.path = k;
+            save();
+          }
         }
       }
       const s = curStep;

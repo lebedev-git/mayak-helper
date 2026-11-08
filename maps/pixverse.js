@@ -35,7 +35,7 @@
     templateUploadDone: { css: '#effect-upload img, #effect-customer_img_paths img' },
     prompt: { css: 'form textarea' },
     create: { css: 'form button', text: '^создать' }, // "Создать 38": цена в кредитах на кнопке
-    creationNav: { css: 'a[href="/creation/video"]' },
+    creationNav: { css: 'a[href^="/creation"]' }, // 07.11.2026 PixVerse сменил /creation/video на /creation/assets
     dlWatermark: { css: '[role=menuitem], button, li, div', text: '^с водяным знаком$' },
   },
 

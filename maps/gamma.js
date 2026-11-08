@@ -26,6 +26,16 @@
     // главная после входа (Gamma 5 или классическая); по ней видно, что вход выполнен
     home: { css: '[data-testid="dashboard-v2-root"], [data-testid$="entry-hero"]' },
     classic: { css: '[data-testid="classic-generator-link"]' },
+    // Язык интерфейса (Андрей 07.11.2026: "поменять язык интерфейса на русский"): кнопка "?" внизу справа,
+    // в меню пункт с текущим языком (English) → окно "Change language": список (кнопка с языком),
+    // в нём "Русский", затем Save. Английский узнаётся по надписям страниц.
+    help: { css: 'button[aria-label]', text: '^(help|помощь|справка)$' },
+    langItem: { css: '[role=menu] button[role=menuitem]', text: '^english$' },
+    langMenu: { css: '[role=dialog] button[aria-haspopup=menu]', text: '^english$' },
+    ruItem: { css: '[role=menuitemradio]', text: '^русский' },
+    langPicked: { css: '[role=dialog] button[aria-haspopup=menu]', text: '^русский' },
+    langSave: { css: '[role=dialog] button', text: '^(save|сохранить)$' },
+    uiEn: { css: 'h1, h2, h3, button, a', text: '^(create with ai|what are we making today\\?|use classic generator|new from blank|paste in text)$' },
     // Окно-анонс Gamma 5 поверх главной (у Андрея 06.11.2026): пока оно открыто, ссылка не нажимается.
     // "Gamma 5" в тексте бывает и у опроса перед классическим генератором: узнаём по словам анонса.
     promo: { css: '[role=dialog]', text: '(масштабное обновление|biggest update)' },
@@ -35,6 +45,10 @@
     // on требует ядро, такого атрибута нет, поэтому выбранной сама по себе не считается ни одна.
     cards: { css: 'div:has(> div > button[role=group])' },
     pasteCard: { css: 'button[role=group]', text: '^(paste in text|вставить текст)', on: { attr: 'data-mayak-selected', eq: 'true' } },
+    genCard: { css: 'button[role=group]', text: '^(generate|сгенерировать|генерировать|создать)', on: { attr: 'data-mayak-selected', eq: 'true' } },
+    // Generate: кнопка плана под промтом, потом итоговая генерация (не карточка, не кнопка плана).
+    outline: { css: 'button', text: '^(generate outline|создать план|сгенерировать план|создать структуру)' },
+    finalGenerate: { css: 'button:not([role=group])', text: '^(generate|сгенерировать|создать)(?! ?(outline|план|структур))' },
     importCard: { css: 'button[role=group]', text: '^(import file or url|импортируйте файл или url)', on: { attr: 'data-mayak-selected', eq: 'true' } },
     pasteArea: { css: '[data-testid="ai-content-editor"]' },
     continue: { css: 'button', text: '^(continue to prompt editor|продолжайте подсказывать редактору)$' },
@@ -106,6 +120,16 @@
       skip: { any: [{ not: { exists: 'promo' } }, { exists: 'survey' }] },
       title: 'Закройте окно Gamma 5',
       say: 'Нажмите Esc или в любом месте рядом с окном.' },
+    { id: 'lang', stage: 'create', el: ['ruItem', 'langMenu', 'langItem', 'help'],
+      skip: { any: [{ not: { exists: 'uiEn' } }, { exists: 'langPicked' }] },
+      skipLabel: 'Оставить английский',
+      title: 'Включите русский язык',
+      say: 'Справа внизу знак ?, затем English, в списке Русский.' },
+    { id: 'lang-save', stage: 'create', el: 'langSave',
+      skip: { not: { exists: 'langPicked' } },
+      // после выбора "Русский" окно уже по-русски ("Изменить язык", "Сохранить"); выбор сохраняется сразу
+      title: 'Нажмите Сохранить',
+      say: 'Кнопка внизу окна: русский язык останется.' },
     // Главная Gamma 5: инструкции тренажёра идут по классическому генератору, ссылка на него вверху.
     { id: 'classic', stage: 'create', el: 'classic',
       skip: { any: [{ not: { exists: 'classic' } }, { exists: 'survey' }] },
@@ -129,13 +153,37 @@
     el: 'cards',
     skip: { not: { url: '^/create/?$' } },
     title: 'Выберите способ',
-    say: 'Новая презентация: Вставить текст. Замена фона: Импорт.',
+    say: 'Выберите по заданию: что у вас уже есть.',
   },
 
   paths: {
+    // Три способа (Андрей 07.11.2026): с нуля по промту МАЯК-ОКО, по готовому тексту, замена фона.
+    // when — путь по адресу страницы способа, если человек пришёл туда не через карточку.
+    generate: {
+      tab: 'genCard',
+      when: { url: '^/create/generate' },
+      mark: 'Есть только промт МАЯК-ОКО',
+      note: 'с нуля',
+      // Сверено вживую до кнопки плана (07.11.2026). Страницу плана и итоговую кнопку вживую не видели:
+      // кнопка плана в окне агента не срабатывала от программного ввода; шаги по устройству Gamma.
+      steps: [
+        { id: 'g-prompt', stage: 'create', el: 'pasteArea',
+          skip: { any: [{ filled: 'pasteArea' }, { not: { url: '^/create/generate' } }] },
+          title: 'Вставьте промт', keys: ['Ctrl', 'V'],
+          say: 'Промт МАЯК-ОКО: в тренажёре Скопировать, затем сюда.' },
+        { id: 'g-outline', stage: 'create', el: 'outline', done: 'click',
+          skip: { not: { url: '^/create/generate' } },
+          title: 'Постройте план слайдов',
+          say: 'Кнопка под промтом. План бесплатный, его можно поправить.' },
+        { id: 'g-generate', stage: 'create', el: 'finalGenerate', wait: 120000, done: 'click',
+          title: 'Нажмите Сгенерировать',
+          say: 'Проверьте план. Генерация тратит бесплатные кредиты.' },
+      ],
+    },
     text: {
       tab: 'pasteCard',
-      mark: 'Новая презентация',
+      when: { url: '^/create/paste' },
+      mark: 'Есть готовый текст по слайдам',
       note: 'по тексту',
       steps: [
         { id: 't-paste', stage: 'create', el: 'pasteArea',
@@ -150,7 +198,8 @@
     },
     file: {
       tab: 'importCard',
-      mark: 'Замена фона',
+      when: { url: '^/create/import' },
+      mark: 'Нужна замена фона',
       note: 'замена фона',
       steps: [
         { id: 'f-wait', stage: 'create',

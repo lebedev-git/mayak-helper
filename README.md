@@ -1,7 +1,7 @@
 # Помощник МАЯК
 
 Расширение Chrome для тренажёра МАЯК-ОКО: показывает прямо на странице сервиса, куда нажать и что сделать
-дальше. Сервисы: Suno, Qwen, Gamma, Z.ai, Renderforest, Audiocleaner, PixVerse. Данные никуда не отправляет.
+дальше. Сервисы: Suno, Qwen, Gamma, Z.ai, Renderforest, Audiocleaner, Any2text, PixVerse. Данные никуда не отправляет.
 
 Здесь всегда последняя версия.
 

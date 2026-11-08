@@ -34,7 +34,7 @@
     // сама ссылка без размеров, обводится её карточка
     startAi: { css: 'div:has(> a[href*="ai_template_animation"])' },
     // мастер, шаг 1 из 4
-    promoClose: { css: '.popup-content > svg' }, // крестик рекламы "Turn any URL into a Video"
+    promoClose: { css: '.popup-content > svg' }, // крестик рекламы: "Turn any URL into a Video", "Скидка 40% на Pro"
     // предложение подписки со скидкой; русский текст кнопки не видели, второй вариант — догадка
     continueFree: { css: 'button', text: '^(continue with free|продолжить бесплатно)$' },
     prompt: { css: 'textarea' },
@@ -123,10 +123,10 @@
       skip: { not: { exists: 'startAi' } },
       title: 'Нажмите Начните с ИИ',
       say: 'Первая карточка в разделе Анимация.' },
-    { id: 'promo', stage: 'create', el: 'promoClose',
+    { id: 'promo', stage: 'create', el: 'promoClose', overlay: true,
       skip: { not: { exists: 'promoClose' } },
       title: 'Закройте рекламу',
-      say: 'Крестик справа вверху. Ссылка для видео не нужна.' },
+      say: 'Крестик справа вверху. Платный тариф для задания не нужен.' },
     { id: 'upsell', stage: 'create', el: 'continueFree',
       skip: { not: { exists: 'continueFree' } },
       title: 'Продолжите бесплатно',

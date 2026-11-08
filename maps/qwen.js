@@ -50,7 +50,8 @@ const pick = (id) => ({ id, stage: 'result', el: 'abList',
   title: 'Выберите лучший ответ',
   say: 'Qwen дал два ответа: Предпочитаю под тем, что лучше.' });
 const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
-  done: { any: [{ clicked: id, within: 3600000 }, { exists: 'sent' }] },
+  // нажатие засчитывается 2 мин, пока сообщение не появилось: дольше — это уже прошлая задача
+  done: { any: [{ clicked: id, within: 120000 }, { exists: 'sent' }] },
   title, keys: ['Enter'], say });
 
 (window.MAYAK_MAPS ||= []).push({
@@ -61,6 +62,9 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
   home: 'chat.qwen.ai',
   // Заставка загрузки: пока она есть, кнопка "Войти" бывает и у вошедших (около 4 с, 07.11.2026).
   loading: 'splash',
+  // Новый чат: сообщений нет, поле ввода на месте. Помощник на результате прошлой задачи — сброс.
+  newTask: { all: [{ exists: 'prompt' }, { not: { exists: 'sent' } }] },
+  sentMark: 'sent',
 
   elements: {
     studio: { css: 'button, a', text: '^(попробовать qwen|try qwen)' },
@@ -91,6 +95,8 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
     webItem: { css: '[role=menu] [role=menuitem]', text: '^(веб-разработка|web dev)' },
     uploadItem: { css: '[role=menu] [role=menuitem]', text: '^(загрузить вложение|upload attachment)' },
     modelBtn: { css: '[aria-label="Select Model"]' },
+    // крестик у включённого режима (картинка, видео, сайт) в строке ввода
+    modeClose: { css: '.mode-select-current-mode-close' },
     modelMax: { css: '[aria-label="Select Model"]', text: 'qwen[\\d.]+-max' },
     maxItem: { css: '[role=listbox] [role=option]', text: '^qwen[\\d.]+-max' },
     // Модель картинок и видео — свой список рядом с режимом в строке ввода (06.11.2026): картинки
@@ -186,7 +192,9 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
   choose: {
     stage: 'create',
     buttons: true,
-    skip: { any: [{ on: 'imageTab' }, { on: 'videoTab' }, { on: 'webTab' }, { exists: 'sent' }] },
+    // путь выбран режимом Qwen (картинка, видео, сайт) — ядро шаг пропускает само
+    skip: { exists: 'sent' },
+    again: 'Другой формат',
     title: 'Что делаем?',
     say: 'Выберите формат, как в задании тренажёра.',
   },
@@ -197,6 +205,11 @@ const send = (id, title, say) => ({ id, stage: 'create', el: 'send',
     text: {
       label: 'Текст',
       steps: [
+        // текст выбран кнопкой, а в Qwen ещё включён режим картинки, видео или сайта
+        { id: 't-nomode', stage: 'create', el: 'modeClose',
+          skip: { any: [{ not: { exists: 'modeClose' } }, { exists: 'sent' }] },
+          title: 'Уберите режим',
+          say: 'Для текста режим не нужен: нажмите крестик у режима.' },
         prompt('t-prompt'), attach('t-attach'), send('t-send', 'Отправьте промт', 'Стрелка справа или Enter. Потом дождитесь ответа.'),
         pick('t-pick'),
         { id: 't-copy', stage: 'result', el: 'copy', wait: 180000, done: 'click',

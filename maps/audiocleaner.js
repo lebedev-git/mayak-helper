@@ -100,7 +100,7 @@ const fromHere = { any: [{ clicked: 'login', within: 900000 }, { clicked: 'full-
     { id: 'processing', stage: 'clean',
       skip: { not: { exists: 'busy' } },
       title: 'Подождите',
-      say: 'Идёт проверка и очистка, 1-2 минуты. Не закрывайте страницу.' },
+      say: 'Идёт очистка. Бывает долгая очередь: ждите, не платите.' },
     { id: 'full-login', stage: 'result', el: 'fullLogin',
       skip: { not: { exists: 'fullLogin' } },
       title: 'Войдите, чтобы скачать',
